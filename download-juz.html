@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Download Mushaf per Juz — Offline</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<style>
+  :root{
+    --bg:#F2F1E7; --surface:#FBFAF4; --ink:#10231D; --muted:#586C63;
+    --primary:#0E4A3B; --on-primary:#F8F5E8; --line:#DBDED0;
+    padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px);
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --bg:#0A1512; --surface:#101F1A; --ink:#ECE8D8; --muted:#9DB0A6;
+      --primary:#1F7A60; --on-primary:#F4F1E4; --line:#203429;
+    }
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+    padding:16px 14px calc(20px + env(safe-area-inset-bottom,0px));}
+  h1{font-size:18px;margin:4px 0 4px}
+  p.sub{color:var(--muted);font-size:13px;margin:0 0 18px}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(84px,1fr));gap:10px}
+  button.juz{appearance:none;border:1px solid var(--line);background:var(--surface);color:var(--ink);
+    border-radius:12px;padding:14px 6px;font:600 14px inherit;cursor:pointer;text-align:center;position:relative}
+  button.juz:active{opacity:.8}
+  button.juz .status{display:block;font-weight:500;font-size:11px;color:var(--muted);margin-top:4px;min-height:14px}
+  button.juz.downloading{background:var(--primary);color:var(--on-primary)}
+  button.juz.downloading .status{color:var(--on-primary);opacity:.85}
+  button.juz.done{border-color:var(--primary)}
+  button.juz.error{border-color:#B3441C}
+</style>
+</head>
+<body>
+<h1>Download Mushaf per Juz</h1>
+<p class="sub">Tap salah satu juz untuk download gambar halamannya sebagai ZIP (untuk disimpan offline di HP).</p>
+<div class="grid" id="grid"></div>
+
+<script>
+const OWNER = 'quran144surat-create';
+const REPO = 'kuis_al_quran';
+const BRANCH = 'main';
+const FOLDER_PREFIX = 'data_base_juz_';
+
+const grid = document.getElementById('grid');
+for(let n = 1; n <= 30; n++){
+  const btn = document.createElement('button');
+  btn.className = 'juz';
+  btn.innerHTML = `Juz ${n}<span class="status"></span>`;
+  btn.addEventListener('click', () => downloadJuz(n, btn));
+  grid.appendChild(btn);
+}
+
+async function downloadJuz(n, btn){
+  if(btn.classList.contains('downloading')) return;
+  btn.classList.remove('done','error');
+  btn.classList.add('downloading');
+  const statusEl = btn.querySelector('.status');
+  statusEl.textContent = 'Memuat daftar...';
+
+  try{
+    const folder = FOLDER_PREFIX + n;
+    const apiUrl = `https://api.github.com/repos/${OWNER}/${REPO}/contents/${folder}?ref=${BRANCH}`;
+    const listRes = await fetch(apiUrl);
+    if(!listRes.ok) throw new Error('Folder juz ' + n + ' tidak ditemukan di repo (status ' + listRes.status + ')');
+    const files = await listRes.json();
+    const images = files.filter(f => /\.(jpe?g|png)$/i.test(f.name)).sort((a,b) => a.name.localeCompare(b.name));
+    if(images.length === 0) throw new Error('Tidak ada gambar di folder juz ' + n);
+
+    const zip = new JSZip();
+    for(let i = 0; i < images.length; i++){
+      statusEl.textContent = `${i+1}/${images.length}`;
+      const imgRes = await fetch(images[i].download_url);
+      if(!imgRes.ok) throw new Error('Gagal ambil ' + images[i].name);
+      const blob = await imgRes.blob();
+      zip.file(images[i].name, blob);
+    }
+
+    statusEl.textContent = 'Membuat ZIP...';
+    const zipBlob = await zip.generateAsync({type:'blob'});
+    const url = URL.createObjectURL(zipBlob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `juz-${n}.zip`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+
+    btn.classList.remove('downloading');
+    btn.classList.add('done');
+    statusEl.textContent = 'Selesai ✓';
+  }catch(err){
+    btn.classList.remove('downloading');
+    btn.classList.add('error');
+    statusEl.textContent = 'Gagal';
+    console.error(err);
+    alert('Juz ' + n + ': ' + err.message);
+  }
+}
+</script>
+</body>
+</html>

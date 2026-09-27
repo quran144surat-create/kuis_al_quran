@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<title>Mushaf — Juz 11</title>
+<meta name="theme-color" content="#0E4A3B">
+<style>
+/*
+=====================================================================
+TEMPLAT HALAMAN MUSHAF PER JUZ — VERSI PENOMORAN HALAMAN LOKAL
+=====================================================================
+Beda dengan versi awal: nama file gambar di folder juz ini SELALU
+dimulai dari 001.jpg, 002.jpg, dst — TIDAK peduli halaman mushaf
+aslinya nomor berapa. Konversi nomor mushaf asli -> nomor lokal
+dilakukan otomatis lewat JUZ_START_PAGE di bawah.
+
+CARA PAKAI UNTUK JUZ LAIN:
+1. Duplikat file ini jadi juz-3.html, juz-4.html, dst.
+2. Ubah JUZ_NUMBER, JUZ_START_PAGE, JUZ_END_PAGE di <script> paling bawah
+   sesuai batas halaman juz tersebut di mushaf standar.
+3. Ubah IMG_BASE_URL / folder gambar (mis. 'juz-3/').
+4. Buat folder gambar berisi 001.jpg, 002.jpg, ... (mulai dari 1,
+   sejumlah = JUZ_END_PAGE - JUZ_START_PAGE + 1 halaman).
+5. WAJIB: salin array AY dan PSTART dari file juz-1.html / index.html
+   kamu yang sudah ada (dicari dengan mencari teks "const AY=" dan
+   "const PSTART=" di file itu), tempel menggantikan placeholder
+   TODO di bagian bawah. Array ini HARUS SAMA persis di semua file
+   juz supaya deep-link surah:ayat -> halaman selalu konsisten.
+
+DEEP-LINK DARI KUIS (index.html):
+Buka file ini dengan salah satu parameter URL:
+  ?s=2&a=255  -> surah 2 (Al-Baqarah), ayat 255 -> auto ke halamannya
+  ?p=42       -> langsung ke halaman mushaf nomor 42 (nomor GLOBAL,
+                 bukan nomor lokal file gambar)
+
+Kalau ayat/halaman yang diminta ternyata ada di juz lain, halaman ini
+akan otomatis redirect ke file juz yang benar (pola nama: juz-N.html).
+=====================================================================
+*/
+:root{
+  --bg:#F2F1E7; --surface:#FBFAF4; --surface2:#E9EBDF;
+  --ink:#10231D; --muted:#586C63; --line:#DBDED0;
+  --primary:#0E4A3B; --on-primary:#F8F5E8; --em:#17705A;
+  --gold:#A47F28;
+  --shadow:0 1px 2px rgba(16,35,29,.06),0 10px 28px rgba(16,35,29,.07);
+  --sans:"Plus Jakarta Sans",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0A1512; --surface:#101F1A; --surface2:#172A23;
+    --ink:#ECE8D8; --muted:#9DB0A6; --line:#203429;
+    --primary:#1F7A60; --on-primary:#F4F1E4; --em:#3FA88B; --gold:#D6B463;
+    --shadow:0 1px 2px rgba(0,0,0,.3),0 10px 28px rgba(0,0,0,.3);
+  }
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 var(--sans);display:flex;flex-direction:column;min-height:100%}
+.topbar{position:sticky;top:0;z-index:10;display:flex;align-items:center;gap:10px;
+  padding:calc(10px + env(safe-area-inset-top,0px)) 14px 10px;
+  background:color-mix(in srgb,var(--bg) 88%,transparent);backdrop-filter:blur(10px);
+  border-bottom:1px solid var(--line)}
+.topbar button{appearance:none;border:none;background:var(--surface2);color:var(--ink);
+  border-radius:10px;padding:8px 12px;font:600 13px var(--sans);cursor:pointer}
+.topbar h1{font-size:15px;margin:0;flex:1;text-align:center}
+.wrap{flex:1 1 auto;min-height:0;display:flex;direction:rtl;overflow-x:auto;overflow-y:hidden;
+  scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch;
+  padding:0;gap:0}
+.page{flex:0 0 100%;max-width:none;margin:0;scroll-snap-align:center;scroll-snap-stop:always;
+  background:var(--bg);border:none;border-radius:0;
+  padding:0;box-shadow:none;position:relative;
+  display:flex;flex-direction:column;direction:ltr}
+.page.highlight{box-shadow:inset 0 0 0 3px var(--em)}
+.page img{display:block;width:100%;flex:1 1 auto;min-height:0;object-fit:contain;border-radius:0}
+.page .pagenum{flex:0 0 auto;text-align:center;color:var(--muted);
+  font-size:12px;font-weight:600;padding:6px 0 calc(6px + env(safe-area-inset-bottom,0px));
+  background:var(--bg)}
+.placeholder{aspect-ratio:210/297;background:var(--surface2);border-radius:0;
+  display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:13px;text-align:center;padding:12px}
+</style>
+</head>
+<body>
+<div class="topbar">
+  <button id="btnBack" type="button">‹ Kuis</button>
+  <h1 id="pageTitle">Juz 11</h1>
+  <span style="width:56px"></span>
+</div>
+<div class="wrap" id="pagesWrap"></div>
+
+<script>
+/* ================= Konfigurasi per-file (WAJIB DIUBAH TIAP JUZ) ================= */
+const JUZ_NUMBER = 11;         // nomor juz file ini
+const JUZ_START_PAGE = 202;     // nomor halaman mushaf ASLI pertama di juz ini
+const JUZ_END_PAGE = 221;      // nomor halaman mushaf ASLI terakhir di juz ini
+
+const IMG_BASE_URL = 'https://raw.githubusercontent.com/quran144surat-create/kuis_al_quran/main/data_base_juz_11/'; // folder gambar diambil langsung dari GitHub
+
+function pageFileName(localPageNumber){ // nama file gambar LOKAL (1,2,3,...) di dalam folder juz ini
+  return String(localPageNumber).padStart(3,'0') + '.jpg';
+}
+function otherJuzFileName(n){ // pola nama file juz lain, untuk redirect antar-juz
+  return 'juz-' + n + '.html';
+}
+const QUIZ_URL = 'index.html'; // link balik ke Kuis Muraja'ah
+
+/* Gambar yang ditempel langsung (base64), kunci = nomor halaman LOKAL (1,2,3,...).
+   Opsional — kalau kosong, otomatis pakai IMG_BASE_URL + pageFileName(). */
+const PAGE_IMAGES = {
+  // 1: 'data:image/jpeg;base64,...',
+};
+
+/* ================= Data mushaf (WAJIB SAMA di semua file juz) =================
+   TODO: GANTI DUA BARIS DI BAWAH INI.
+   Salin persis dari file juz-1.html / index.html kamu yang sudah ada —
+   cari baris yang diawali "const AY=" dan "const PSTART=" di file itu,
+   lalu tempel di sini menggantikan placeholder ini. */
+const AY=[7,286,200,176,120,165,206,75,129,109,123,111,43,52,99,128,111,110,98,135,112,78,118,64,77,227,93,88,69,60,34,30,73,54,45,83,182,88,75,85,54,53,89,59,37,35,38,29,18,45,60,49,62,55,78,96,29,22,24,13,14,11,11,18,12,12,30,52,52,44,28,28,20,56,40,31,50,40,46,42,29,19,36,25,22,17,19,26,30,20,15,21,11,8,8,19,5,8,8,11,11,8,3,9,5,4,7,3,6,3,5,4,5,6];
+const PSTART=[1,8,13,24,32,37,45,56,65,69,77,84,91,96,101,109,113,120,127,134,142,149,153,161,171,177,184,189,194,198,204,210,218,223,227,232,238,241,245,253,256,260,264,267,272,277,282,289,290,294,303,309,316,323,331,339,346,355,364,371,377,385,394,402,409,415,426,434,442,447,451,459,467,474,480,488,494,500,505,508,513,517,520,527,531,538,545,553,559,568,573,580,585,588,595,599,607,615,621,628,634,641,648,656,664,669,672,675,679,683,687,693,701,706,711,715,720,727,734,740,746,752,759,765,773,778,783,790,798,808,817,825,834,842,849,858,863,871,880,884,891,900,908,914,921,927,932,936,941,947,955,966,977,985,992,998,1006,1012,1022,1028,1036,1042,1050,1059,1075,1085,1092,1098,1104,1110,1114,1118,1125,1133,1142,1150,1161,1169,1177,1186,1194,1201,1206,1213,1222,1230,1236,1242,1249,1256,1262,1267,1272,1276,1283,1290,1297,1304,1308,1315,1322,1329,1335,1342,1347,1353,1358,1365,1371,1379,1385,1390,1398,1407,1418,1426,1435,1443,1453,1462,1471,1479,1486,1493,1502,1511,1519,1527,1536,1545,1555,1562,1571,1582,1591,1601,1611,1619,1627,1634,1640,1649,1660,1666,1675,1683,1692,1700,1708,1713,1721,1726,1736,1742,1750,1756,1761,1769,1775,1784,1793,1803,1818,1834,1854,1873,1893,1908,1916,1928,1936,1944,1956,1966,1974,1981,1989,1995,2004,2012,2020,2030,2037,2047,2057,2068,2079,2088,2096,2105,2116,2126,2134,2145,2156,2161,2168,2175,2186,2194,2202,2215,2224,2238,2251,2262,2276,2289,2302,2315,2327,2346,2361,2386,2400,2413,2425,2436,2447,2462,2474,2484,2494,2508,2519,2528,2541,2556,2565,2574,2585,2596,2601,2611,2619,2626,2634,2642,2651,2660,2668,2674,2691,2701,2716,2733,2748,2763,2778,2792,2802,2812,2819,2823,2828,2835,2845,2850,2853,2858,2867,2876,2888,2899,2911,2923,2933,2952,2972,2993,3016,3044,3069,3092,3116,3139,3160,3173,3182,3195,3204,3215,3223,3236,3248,3258,3266,3274,3281,3288,3296,3303,3312,3323,3330,3337,3347,3355,3364,3371,3379,3386,3393,3404,3415,3425,3434,3442,3451,3460,3470,3481,3489,3498,3504,3515,3524,3534,3540,3549,3556,3564,3569,3577,3584,3588,3596,3607,3614,3621,3629,3638,3646,3655,3664,3672,3679,3691,3699,3705,3718,3733,3746,3760,3776,3789,3813,3840,3865,3891,3915,3942,3971,3987,3997,4013,4032,4054,4064,4069,4080,4090,4099,4106,4115,4126,4133,4141,4150,4159,4167,4174,4183,4192,4200,4211,4219,4230,4239,4248,4257,4265,4273,4283,4288,4295,4304,4317,4324,4336,4348,4359,4373,4386,4399,4415,4433,4454,4474,4487,4496,4506,4516,4525,4531,4539,4546,4557,4565,4575,4584,4593,4599,4607,4612,4617,4624,4631,4646,4666,4682,4706,4727,4750,4767,4785,4811,4829,4853,4874,4896,4918,4942,4969,4996,5030,5056,5079,5087,5094,5100,5105,5111,5116,5126,5130,5136,5143,5151,5156,5162,5169,5178,5186,5193,5200,5209,5218,5223,5230,5237,5242,5254,5268,5287,5314,5332,5358,5386,5415,5430,5448,5461,5476,5495,5513,5543,5571,5597,5617,5642,5673,5703,5728,5759,5801,5830,5855,5883,5910,5932,5964,5994,6017,6044,6073,6099,6126,6138,6156,6177,6194,6208,6222];
+
+const GSTART=[0];for(let i=0;i<114;i++)GSTART.push(GSTART[i]+AY[i]);
+
+/* ================= Konversi nomor halaman GLOBAL <-> LOKAL ================= */
+function isPageInThisJuz(globalPage){
+  return globalPage >= JUZ_START_PAGE && globalPage <= JUZ_END_PAGE;
+}
+function globalToLocal(globalPage){
+  return globalPage - JUZ_START_PAGE + 1;
+}
+// Cari nomor juz (1-30) tempat sebuah halaman global berada, berdasarkan PSTART.
+// PSTART berisi halaman awal tiap SURAH, jadi dipakai fungsi lain untuk cari juz
+// lewat pemetaan manual — sederhananya: kalau globalPage di luar rentang file ini,
+// kamu isi tabel batas juz sendiri di bawah supaya redirect akurat.
+const JUZ_PAGE_RANGES = {
+  // TODO: isi batas semua juz, format: nomorJuz: [halamanAwal, halamanAkhir]
+  1:[1,21], 2:[22,41], // dst... lengkapi 3-28 sesuai mushaf standar kamu
+  29:[562,581],
+  30:[582,604],
+};
+function findJuzForPage(globalPage){
+  for(const n in JUZ_PAGE_RANGES){
+    const [a,b]=JUZ_PAGE_RANGES[n];
+    if(globalPage>=a && globalPage<=b) return Number(n);
+  }
+  return null;
+}
+
+/* ================= Render halaman ================= */
+const wrap = document.getElementById('pagesWrap');
+let targetGlobalPage = null;
+
+const params = new URLSearchParams(location.search);
+if(params.has('p')){
+  targetGlobalPage = parseInt(params.get('p'),10);
+} else if(params.has('s') && params.has('a')){
+  const s = parseInt(params.get('s'),10);
+  const a = parseInt(params.get('a'),10);
+  const ayatGlobal = GSTART[s-1] + a; // urutan ayat ke berapa secara global (kumulatif dari Al-Fatihah)
+  // PSTART[i] = jumlah ayat kumulatif di AWAL halaman ke-(i+1).
+  // Cari halaman terakhir yang PSTART-nya <= ayatGlobal -> itu halamannya.
+  for(let i=PSTART.length-1;i>=0;i--){
+    if(PSTART[i] <= ayatGlobal){ targetGlobalPage = i+1; break; }
+  }
+}
+
+if(targetGlobalPage && !isPageInThisJuz(targetGlobalPage)){
+  const juzTujuan = findJuzForPage(targetGlobalPage);
+  if(juzTujuan && juzTujuan !== JUZ_NUMBER){
+    location.replace(otherJuzFileName(juzTujuan) + location.search);
+  }
+}
+
+for(let g = JUZ_START_PAGE; g <= JUZ_END_PAGE; g++){
+  const local = globalToLocal(g);
+  const div = document.createElement('div');
+  div.className = 'page';
+  div.id = 'pg-' + g;
+  const src = PAGE_IMAGES[local] || (IMG_BASE_URL + pageFileName(local));
+  div.innerHTML = `
+    <img src="${src}" alt="Halaman ${g}" loading="lazy"
+         onerror="this.parentElement.querySelector('.ph').style.display='flex'; this.style.display='none';">
+    <div class="placeholder ph" style="display:none">Halaman ${g}<br>(gambar belum tersedia)</div>
+    <div class="pagenum">Hal. ${g}</div>
+  `;
+  wrap.appendChild(div);
+}
+
+if(targetGlobalPage && isPageInThisJuz(targetGlobalPage)){
+  const el = document.getElementById('pg-' + targetGlobalPage);
+  if(el){
+    el.classList.add('highlight');
+    requestAnimationFrame(()=> el.scrollIntoView({behavior:'instant', inline:'center'}));
+  }
+}
+
+document.getElementById('btnBack').addEventListener('click', ()=>{
+  // Halaman ini dibuka dari tombol "Buka di Mushaf" di Kuis Muraja'ah lewat
+  // target="_blank", artinya tab Kuis dengan soal yang sedang dikerjakan
+  // MASIH TERBUKA di tab lain. Jadi cara paling benar untuk "kembali ke soal"
+  // adalah menutup tab mushaf ini (window.close()), supaya pengguna otomatis
+  // kembali melihat tab Kuis yang soalnya masih persis sama.
+  window.close();
+  // Fallback kalau browser menolak menutup tab ini via skrip (window.close()
+  // hanya diizinkan kalau tab dibuka lewat script/link — kalau gagal, coba
+  // mundur di riwayat tab ini, baru kalau itu pun tidak bisa, arahkan ke
+  // menu Kuis sebagai jalan terakhir.
+  setTimeout(()=>{
+    if(history.length > 1){ history.back(); }
+    else { location.href = QUIZ_URL; }
+  }, 300);
+});
+</script>
+</body>
+</html>

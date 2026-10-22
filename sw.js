@@ -1,6 +1,6 @@
 /* Service worker Catatan Hafalan — cache agar bisa dibuka offline.
    Naikkan VERSION setiap kali mengganti file app agar HP mengambil versi baru. */
-const VERSION = 'v2';
+const VERSION = 'v3';
 const CACHE = 'catatan-hafalan-' + VERSION;
 const CORE = ['./', './index.html', './manifest.webmanifest', './icon-192.png', './icon-512.png',
   './icon-maskable-512.png', './apple-touch-icon.png', './favicon-32.png'];
